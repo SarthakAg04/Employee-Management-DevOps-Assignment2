@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Management Portal</title>
+    <style>
+        :root { color-scheme: light; font-family: Inter, Arial, sans-serif; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #f3f6fb; color: #172033; }
+        header { padding: 32px 7vw; color: white; background: linear-gradient(120deg, #173b77, #2875c7); }
+        header p { margin: 8px 0 0; color: #d7e8ff; }
+        main { width: min(1120px, 86vw); margin: 28px auto 60px; }
+        .grid { display: grid; grid-template-columns: 350px 1fr; gap: 24px; align-items: start; }
+        .card { padding: 24px; background: white; border: 1px solid #e0e7f2; border-radius: 14px; box-shadow: 0 8px 25px #1a356d0d; }
+        h1, h2 { margin: 0; } h2 { font-size: 20px; margin-bottom: 20px; }
+        label { display: block; margin: 13px 0 6px; font-size: 13px; font-weight: 700; color: #52617a; }
+        input, button { width: 100%; padding: 11px 12px; border-radius: 8px; font: inherit; }
+        input { border: 1px solid #cbd6e5; } input:focus { outline: 2px solid #9cc8ff; border-color: #2875c7; }
+        button { border: 0; cursor: pointer; color: white; background: #216ac0; font-weight: 700; }
+        button:hover { background: #174e91; } .secondary { background: #edf3fb; color: #24578f; }
+        .actions { display: flex; gap: 10px; margin-top: 20px; } .actions button { flex: 1; }
+        .toolbar { display: flex; gap: 12px; margin-bottom: 18px; } .toolbar input { flex: 1; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { padding: 13px 10px; border-bottom: 1px solid #e9eef5; text-align: left; }
+        th { color: #52617a; font-size: 12px; text-transform: uppercase; }
+        .empty { padding: 35px 10px; text-align: center; color: #72809a; }
+        .message { min-height: 20px; margin-top: 12px; font-size: 13px; } .success { color: #15803d; } .error { color: #b42318; }
+        .delete { width: auto; padding: 7px 10px; background: #fff0ef; color: #b42318; font-size: 12px; }
+        @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } .card { padding: 18px; } .table-wrap { overflow-x: auto; } }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Employee Management Portal</h1>
+        <p>Register, search and manage employee records in one place.</p>
+    </header>
+    <main>
+        <div class="grid">
+            <section class="card">
+                <h2>Register Employee</h2>
+                <form id="employee-form">
+                    <label for="name">Full name</label>
+                    <input id="name" name="name" required placeholder="e.g. Aditi Sharma">
+                    <label for="email">Email address</label>
+                    <input id="email" name="email" type="email" required placeholder="employee@example.com">
+                    <label for="department">Department</label>
+                    <input id="department" name="department" required placeholder="e.g. Information Technology">
+                    <label for="role">Role</label>
+                    <input id="role" name="role" required placeholder="e.g. Software Engineer">
+                    <label for="phone">Phone number</label>
+                    <input id="phone" name="phone" required placeholder="+91 98765 43210">
+                    <label for="joined_date">Joining date</label>
+                    <input id="joined_date" name="joined_date" type="date" required>
+                    <div class="actions">
+                        <button type="submit">Add employee</button>
+                        <button type="reset" class="secondary">Clear</button>
+                    </div>
+                    <div id="message" class="message" role="status"></div>
+                </form>
+            </section>
+            <section class="card">
+                <h2>Employee Records</h2>
+                <div class="toolbar">
+                    <input id="search" placeholder="Search by name, email, department or role">
+                    <button id="refresh" type="button" style="width:auto">Refresh</button>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Name</th><th>Department</th><th>Role</th><th>Contact</th><th>Action</th></tr></thead>
+                        <tbody id="employee-list"></tbody>
+                    </table>
+                    <div id="empty" class="empty" hidden>No employee records found.</div>
+                </div>
+            </section>
+        </div>
+    </main>
+    <script>
+        const form = document.querySelector("#employee-form");
+        const list = document.querySelector("#employee-list");
+        const empty = document.querySelector("#empty");
+        const search = document.querySelector("#search");
+        const message = document.querySelector("#message");
+
+        function showMessage(text, type) {
+            message.textContent = text;
+            message.className = `message ${type}`;
+        }
+
+        async function loadEmployees() {
+            const response = await fetch(`/api/employees?search=${encodeURIComponent(search.value)}`);
+            const employees = await response.json();
+            list.innerHTML = employees.map(employee => `
+                <tr>
+                    <td><strong>${escapeHtml(employee.name)}</strong><br><small>${escapeHtml(employee.email)}</small></td>
+                    <td>${escapeHtml(employee.department)}</td>
+                    <td>${escapeHtml(employee.role)}</td>
+                    <td>${escapeHtml(employee.phone)}<br><small>Joined ${escapeHtml(employee.joined_date)}</small></td>
+                    <td><button class="delete" data-id="${employee.id}" type="button">Delete</button></td>
+                </tr>`).join("");
+            empty.hidden = employees.length !== 0;
+        }
+
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, character => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+            }[character]));
+        }
+
+        form.addEventListener("submit", async event => {
+            event.preventDefault();
+            const payload = Object.fromEntries(new FormData(form));
+            const response = await fetch("/api/employees", {
+                method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            if (!response.ok) { showMessage(result.error, "error"); return; }
+            form.reset(); showMessage("Employee registered successfully.", "success"); loadEmployees();
+        });
+
+        list.addEventListener("click", async event => {
+            if (!event.target.matches(".delete")) return;
+            if (!window.confirm("Delete this employee record?")) return;
+            const response = await fetch(`/api/employees/${event.target.dataset.id}`, {method: "DELETE"});
+            if (response.ok) { showMessage("Employee record deleted.", "success"); loadEmployees(); }
+        });
+
+        let searchTimer;
+        search.addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadEmployees, 250); });
+        document.querySelector("#refresh").addEventListener("click", loadEmployees);
+        loadEmployees();
+    </script>
+</body>
+</html>
